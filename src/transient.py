@@ -61,8 +61,8 @@ class ConductiveConnection(Connection):
         Connection.__init__(self, conductance)
         self.type = 'conduction'
 
-    def flow(self, T_other_end):
-        return self.conductance * T_other_end
+    def flow(self, T_node, T_other_node):
+        return self.conductance * (T_other_node - T_node)
 
 
 class ConvectiveConnection(Connection):
@@ -70,8 +70,8 @@ class ConvectiveConnection(Connection):
         Connection.__init__(self, conductance)
         self.type = 'convection'
 
-    def flow(self, T_other_end):
-        return self.conductance * T_other_end
+    def flow(self, T_node, T_other_node):
+        return self.conductance * (T_other_node - T_node)
 
 
 class RadiativeConnection(Connection):
@@ -79,8 +79,8 @@ class RadiativeConnection(Connection):
         Connection.__init__(self, conductance)
         self.type = 'radiation'
 
-    def flow(self, T_other_end):
-        return self.conductance * T_other_end**4
+    def flow(self, T_node, T_other_node):
+        return self.conductance * (T_other_node**4 - T_node**4)
 
 
 class Node():
@@ -88,7 +88,7 @@ class Node():
         self.name = node['name']
         self.description = node['comment']
         self.type = node['type']
-        self.temp = node['T0']
+        self.T = node['T0']
         self.T0 = node['T0']
         self.connections = None
         if self.type == 'diffusion':
@@ -106,35 +106,35 @@ class Node():
 
     def dT_dt(self, nodes):
         dT_dt = 0
+        # sum heat flows from all connections
         for index, connection in self.connections.iteritems():
             other_node = nodes[index]
             connection_dT_dt = 0
             if connection.type != 'undefined':
-                connection_dT_dt = connection.flow(other_node.temp)
-                print(f'{connection_dT_dt:<6} {self.name:>10} -[{connection.type:^10}]-> {other_node.name}')
+                connection_dT_dt = connection.flow(self.T, other_node.T)
+                # print(f'{connection_dT_dt:<6} {self.name:>10} -[{connection.type:^10}]-> {other_node.name}')
             dT_dt += connection_dT_dt
+        # add external heat loads at this node
+        dT_dt += self.dissipated_heat
+
+        # scale rate of change by thermal capacitance
+        if self.thermal_mass > 0:
+            dT_dt = dT_dt/self.thermal_mass
+
         return dT_dt
 
 
-def diffusion():
+def diffusion(nodes):
     ''' transient response of diffusion nodes '''
     # transfer heat to/from surrounding nodes
-    dT_dt = 0
-    # add heat from source loads
-
-    # scale by thermal mass to calculate temperature rate of change
-    pass
-
-
-def do_something():
-    # Divide thermal connections between conductive (linear), convective (linear)
-    # and radiative (nonlinear), and divide based on whether they link
-    # diffusion-diffusion, diffusion-arithmetic, diffusion-boundary,
-    # arithmetic-arithmetic, or arithmetic-boundary nodes
-    pass
+    for name, node in nodes.iteritems():
+        if node.type == 'diffusion':
+            dT_dt = node.dT_dt(nodes)
+            node.T += dT_dt
+    return nodes
 
 
-def relaxation_error():
+def relaxation_error(nodes):
     ''' solve for arithmetic node temperatures
     arithmetic nodes are held fixed as boundary nodes while solving for
     diffusion node temperatures, then relaxed to calculate their
@@ -142,19 +142,20 @@ def relaxation_error():
     '''
     # sum of heat flows in/out of nodes due to energy exchange with
     # neighboring nodes
+    for name, node in nodes.iteritems():
+        if node.type == 'arithmetic':
+            dT_dt = node.dT_dt(nodes)
+            node.T += dT_dt
+    return nodes
 
-    # add heat from source loads
-    pass
 
-
-def step():
+def step(nodes):
     ''' step thermal model forward in time '''
     # integrate diffusion nodes
-
+    nodes = diffusion(nodes)
     # relax arithmetic nodes
-
-    # update temperatures
-    pass
+    nodes = relaxation_error(nodes)
+    return nodes
 
 
 def setup_nodes(nodes):
@@ -202,18 +203,28 @@ def transient(nodes, connections, duration_s, dt_s):
     nodes, connection_matrix = setup(nodes, connections)
     print('Nodes \n%s' % nodes)
     print('Connection Matrix \n%s' % connection_matrix)
-    timeseries = pd.timedelta_range(
+    timespan = pd.timedelta_range(
         start='0 seconds',
         end=f'{duration_s} seconds',
         periods=np.ceil(duration_s / dt_s))
-    temperatures = pd.DataFrame(columns=nodes.keys(), index=timeseries)
-    for name, node in nodes.iteritems():
-        node.dT_dt(nodes)
+    data=[]
+    for time in timespan:
+        nodes = step(nodes)
+        row = {}
+        for name, node in nodes.iteritems():
+            row[name] = node.T
+        data.append(row)
+    timeseries = pd.DataFrame(data, index=timespan)
+    return timeseries
 
 
 if __name__ == '__main__':
+    import plotly.express as px
     from utils import conductance
     nodes = pd.read_csv('nodes.csv')
     connections = pd.read_csv('connections.csv')
     connections['C'] = connections['R'].apply(conductance)
-    transient(nodes, connections, 1000, 0.1)
+    temps = transient(nodes, connections, 1000, 0.1)
+    print(temps)
+    fig=px.line(temps)
+    fig.write_html('plots.html')
