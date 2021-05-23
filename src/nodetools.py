@@ -5,6 +5,30 @@ from scipy.optimize import fsolve
 import utils
 
 
+class Node():
+    ''' points that have temperature and transfer heat '''
+
+    def __init__(self, node):
+        self.name = node['name']
+        self.description = node['comment']
+        self.type = node['type']
+        self.T = node['T0']
+        self.T0 = node['T0']
+        self.connections = None
+        if self.type == 'diffusion':
+            self.thermal_mass = node['thermal_mass']
+        else:
+            self.thermal_mass = 0
+        self.external_load = node['external_load'] if ~np.isnan(
+            node['external_load']) else 0
+
+    def __repr__(self):
+        return self.name
+
+    def __str__(self):
+        return f'{self.name} ({self.type})'
+
+
 class NodeMap():
     ''' a collection of connected nodes '''
 
@@ -80,58 +104,52 @@ class NodeMap():
                 bc_nodenames.append(node.name)
                 Q[index] += node.T*np.sum(K[bc_index, bc_index])
         # drop boundary nodes from K, Q, index
-        for nodename in bc_nodenames:
-            index_map.pop(nodename, None)
         K = utils.delete_indices_symmetric(K, bc_indices)
         Q = utils.delete_indices_vector(Q, bc_indices)
-        
-        return Q, K, index_map
+        for nodename in bc_nodenames:
+            index_map.pop(nodename, None)
+        # reindex the index map
+        Kmap = {}
+        for newindex, nodename in enumerate(index_map.keys()):
+            Kmap[nodename] = newindex
+        return Q, K, Kmap
 
-    def temperatures(self):
+    def reset_to_initial_temperatures(self):
+        for node in self.nodes:
+            node.T = node.T0
+
+    def set_temperatures(self, new_temps_dict):
+        ''' {'node name': new_temp} '''
+        for node in self.nodes:
+            node.T = new_temps_dict[node.name]
+
+    def get_temperatures(self):
         temperatures = {}
-        for name, node in self.nodes.iteritems():
-            temperatures[name] = node.T
+        for node in self.nodes:
+            temperatures[node.name] = node.T
         return temperatures
     
     def steady_state(self):
+        ''' solve KT=Q for T '''
         Kinv = np.linalg.inv(self.K)
         temps = np.dot(Kinv, self.Q).A1
-        return temps
+        new_temps_dict = {}
+        for nodename, nodeindex in self.Kmap.items():
+            new_temps_dict[nodename] = temps[nodeindex]
+        return new_temps_dict
 
+    def step(nodemap):
+        ''' step thermal model forward in time '''
+        # # integrate diffusion nodes
+        # nodes = diffusion(nodes)
+        # # relax arithmetic nodes
+        # nodes = relaxation_error(nodes)
+        return nodemap
 
-class Node():
-    ''' points that have temperature and transfer heat '''
-
-    def __init__(self, node):
-        self.name = node['name']
-        self.description = node['comment']
-        self.type = node['type']
-        self.T = node['T0']
-        self.T0 = node['T0']
-        self.connections = None
-        if self.type == 'diffusion':
-            self.thermal_mass = node['thermal_mass']
-        else:
-            self.thermal_mass = 0
-        self.external_load = node['external_load'] if ~np.isnan(
-            node['external_load']) else 0
-
-    def __repr__(self):
-        return self.name
-
-    def __str__(self):
-        return f'{self.name} ({self.type})'
-
-
-# HEAT TRANSFER
 
 # def diffusion(nodes):
 #     ''' transient response of diffusion nodes '''
 #     # transfer heat to/from surrounding nodes
-#     for name, node in nodes.iteritems():
-#         if node.type == 'diffusion':
-#             dT_dt = node.dT_dt(nodes)
-#             node.T += dT_dt
 #     return nodes
 
 
@@ -143,19 +161,7 @@ class Node():
 #     '''
 #     # sum of heat flows in/out of nodes due to energy exchange with
 #     # neighboring nodes
-#     for name, node in nodes.iteritems():
-#         if node.type == 'arithmetic':
-#             dT_dt = node.dT_dt(nodes)
-#             node.T += dT_dt
 #     return nodes
-
-def step(nodemap):
-    ''' step thermal model forward in time '''
-    # # integrate diffusion nodes
-    # nodes = diffusion(nodes)
-    # # relax arithmetic nodes
-    # nodes = relaxation_error(nodes)
-    return nodemap
 
 
 # def transient(nodes, connections, duration_s, dt_s, progress_pct=10):
@@ -180,20 +186,3 @@ def step(nodemap):
 
 #     timeseries = pd.DataFrame(data, columns=nodes.index, index=timespan)
 #     return timeseries
-
-
-if __name__ == '__main__':
-    import plotly.express as px
-    from utils import conductance
-    nodes = pd.read_csv('nodes.csv')
-    connections = pd.read_csv('connections.csv')
-    connections['C'] = connections['R'].apply(conductance)
-    duration_s = 1000
-    dt_s = 0.1
-    nodemap = NodeMap(nodes, connections)
-    print(nodemap.K)
-    print(nodemap.Q)
-    print(nodemap.steady_state())
-    # print('plotting result...')
-    # fig = px.line(temps)
-    # fig.show()

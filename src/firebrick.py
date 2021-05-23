@@ -31,7 +31,7 @@ def main():
     print(f'Heat load and boundary condition vector, Q\n{nodemap.Q}')
     temps = nodemap.steady_state()
     toc = time.perf_counter()
-    print(pd.Series(temps, index=nodemap.Kmap.keys(), name='Steady State Temps'))
+    print(f'Steady State Temperatures\n{pd.Series(temps)}')
     print(f'runtime: {toc - tic:0.4f} seconds')
 
 if __name__ == '__main__':

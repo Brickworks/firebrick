@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 
 def pairs2square(connections, var, fillna=0):
+    ''' turn a sparse coordinate matrix (row, col, data) into a square matrix
+    using a pandas backend. only supports numeric data
+    '''
     pairs = connections[['node1', 'node2', var]]
     # pivot to translate pairs into a matrix
     pivot_table = pairs.pivot(*pairs)
@@ -15,7 +18,7 @@ def pairs2square(connections, var, fillna=0):
 
 def to_sparse_matrix(connections, var=None):
     ''' turn a connections dataframe into a square sparse matrix in
-        coordinate format [(row,col) data]
+        coordinate format [(row,col) data] using scipy backend
     'node1' --> row coordinates
     'node2' --> col coordinates
       var   --> data at coordinates
