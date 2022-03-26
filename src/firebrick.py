@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import click
 import logging
+
 import heatflow
+from mission_control.dashboard import run_server
 
 
 @click.group()
@@ -32,6 +34,24 @@ def thermal_network(ctx, nodes, connections):
     CONNECTIONS path to a CSV of definitions of connections between nodes.
     '''
     heatflow.solve(nodes, connections)
+
+
+@cli.command()
+@click.pass_context
+@click.option('-t',
+              '--telemetry_database',
+              type=click.Path(exists=True),
+              envvar="TELEMETRY_DATABSE",
+              help='Path to telemetry CSV.')
+@click.option('-p',
+              '--port',
+              nargs=1,
+              default=8080,
+              help='Server port on localhost to use.')
+def dashboard(ctx, telemetry_database, port):
+    ''' Start a telemetry dashboard server on localhost.
+    '''
+    run_server(port=port, debug=True, threaded=True)
 
 
 if __name__ == '__main__':
