@@ -1,2 +1,2 @@
 # firebrick
-simple thermal node network solver
+hardware and software in the loop environment
