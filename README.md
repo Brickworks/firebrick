@@ -1,2 +1,12 @@
 # firebrick
-hardware and software in the loop environment
+Brickworks tools.
+
+install with pip
+```sh
+pip install .
+```
+
+inspect available commands
+```sh
+firebrick --help
+```
