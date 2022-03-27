@@ -46,7 +46,7 @@ def thermal_network(ctx, nodes, connections):
 @click.option('-p',
               '--port',
               nargs=1,
-              default=8080,
+              default=8050,
               help='Server port on localhost to use.')
 def dashboard(ctx, telemetry_database, port):
     ''' Start a telemetry dashboard server on localhost.
