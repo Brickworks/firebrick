@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import tailer as tl
 
-TELEMETRY_DATABASE = os.getenv('TELEMETRY_DATABASE', '../mfc-apps/cli/out.csv')
+TELEMETRY_DATABASE = os.getenv('TELEMETRY_DATABASE', 'out.csv')
 DEFAULT_TAIL_LINES = 1000
 PLOT_TEMPLATE = 'plotly_white'
 
