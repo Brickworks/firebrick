@@ -1,0 +1,14 @@
+# common
+numpy
+pandas
+
+# cli
+click
+
+# heatflow
+scipy
+
+# mission_control
+dash==2.3.0
+tailer
+plotly
